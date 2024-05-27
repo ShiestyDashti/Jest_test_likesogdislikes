@@ -1,41 +1,82 @@
-function handleLike(postElement) {
-    const likeButton = postElement.querySelector('.thumbs-up-btn');
-    const dislikeButton = postElement.querySelector('.thumbs-down-btn');
-    const likeCount = postElement.querySelector('.like-count');
-    const dislikeCount = postElement.querySelector('.dislike-count');
-    const username = 'testUser'; // Replace with actual username logic if available
+function setupLikeDislikeButtons(postElement) {
+    const thumbsUpButton = postElement.querySelector('.thumbs-up-btn');
+    const thumbsDownButton = postElement.querySelector('.thumbs-down-btn');
+    const likeCount = postElement.querySelectorAll('.post-rating-count')[0];
+    const dislikeCount = postElement.querySelectorAll('.post-rating-count')[1];
 
-    likeButton.addEventListener('click', async () => {
-        if (likeButton.classList.contains('clicked')) {
+    const postId = postElement.dataset.index;
+    const username = localStorage.getItem("username");
+    const userLikes = JSON.parse(localStorage.getItem('userLikes')) || {};
+    const userDislikes = JSON.parse(localStorage.getItem('userDislikes')) || {};
+
+    if (userLikes[postId]) {
+        thumbsUpButton.classList.add('clicked');
+        thumbsDownButton.disabled = true;
+    }
+    if (userDislikes[postId]) {
+        thumbsDownButton.classList.add('clicked');
+        thumbsUpButton.disabled = true;
+    }
+
+    thumbsUpButton.addEventListener('click', async () => {
+        if (thumbsUpButton.classList.contains('clicked')) {
             likeCount.textContent = Number(likeCount.textContent) - 1;
-            likeButton.classList.remove('clicked');
-            dislikeButton.disabled = false;
+            thumbsUpButton.classList.remove('clicked');
+            thumbsDownButton.disabled = false;
+            delete userLikes[postId];
+            localStorage.setItem('userLikes', JSON.stringify(userLikes));
+            await fetch(`/posts/${postId}/unlike`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
         } else {
             likeCount.textContent = Number(likeCount.textContent) + 1;
-            likeButton.classList.add('clicked');
-            dislikeButton.disabled = true;
+            thumbsUpButton.classList.add('clicked');
+            thumbsDownButton.disabled = true;
+            userLikes[postId] = true;
+            localStorage.setItem('userLikes', JSON.stringify(userLikes));
+            await fetch(`/posts/${postId}/like`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
         }
     });
-}
 
-function handleDislike(postElement) {
-    const likeButton = postElement.querySelector('.thumbs-up-btn');
-    const dislikeButton = postElement.querySelector('.thumbs-down-btn');
-    const likeCount = postElement.querySelector('.like-count');
-    const dislikeCount = postElement.querySelector('.dislike-count');
-    const username = 'testUser'; // Replace with actual username logic if available
-
-    dislikeButton.addEventListener('click', async () => {
-        if (dislikeButton.classList.contains('clicked')) {
+    thumbsDownButton.addEventListener('click', async () => {
+        if (thumbsDownButton.classList.contains('clicked')) {
             dislikeCount.textContent = Number(dislikeCount.textContent) - 1;
-            dislikeButton.classList.remove('clicked');
-            likeButton.disabled = false;
+            thumbsDownButton.classList.remove('clicked');
+            thumbsUpButton.disabled = false;
+            delete userDislikes[postId];
+            localStorage.setItem('userDislikes', JSON.stringify(userDislikes));
+            await fetch(`/posts/${postId}/undislike`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
         } else {
             dislikeCount.textContent = Number(dislikeCount.textContent) + 1;
-            dislikeButton.classList.add('clicked');
-            likeButton.disabled = true;
+            thumbsDownButton.classList.add('clicked');
+            thumbsUpButton.disabled = true;
+            userDislikes[postId] = true;
+            localStorage.setItem('userDislikes', JSON.stringify(userDislikes));
+            await fetch(`/posts/${postId}/dislike`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
         }
     });
 }
 
-module.exports = { handleLike, handleDislike };
+module.exports = { setupLikeDislikeButtons };

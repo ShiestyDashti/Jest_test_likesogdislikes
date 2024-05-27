@@ -1,116 +1,142 @@
+// likesdislikes.test.js
+
+const fs = require('fs');
+const path = require('path');
 const { JSDOM } = require('jsdom');
-const { handleLike, handleDislike } = require('./likedislike.js');
+const { setupLikeDislikeButtons } = require('./likedislike.js');
+
+// Mock the fetch function globalt
+global.fetch = jest.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({}),
+    text: () => Promise.resolve('Success')
+  })
+);
+
+// Læs HTML-filen
+const html = fs.readFileSync(path.resolve(__dirname, './post.html'), 'utf8');
+
+// Mock localStorage
+const localStorageMock = (() => {
+  let store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => {
+      store[key] = value.toString();
+    },
+    removeItem: (key) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    }
+  };
+})();
 
 let document;
 let window;
-let container;
 
 beforeEach(() => {
-    const dom = new JSDOM(`<!DOCTYPE html><html><body><div class="container"></div></body></html>`);
-    window = dom.window;
-    document = window.document;
+  const dom = new JSDOM(html, { runScripts: 'dangerously' });
+  document = dom.window.document;
+  window = dom.window;
 
-    container = document.querySelector('.container');
+  // Tildel mock localStorage til window
+  window.localStorage = localStorageMock;
 
-    global.document = document;
-    global.window = window;
+  // Sørg for, at localStorage er tilgængelig globalt
+  global.localStorage = localStorageMock;
 
-    global.fetch = jest.fn(() =>
-        Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({}),
-        })
-    );
-});
-
-afterEach(() => {
-    document.body.innerHTML = '';
+  // Ryd localStorage før hver test
+  localStorageMock.clear();
 });
 
 describe('Post like/dislike functionality', () => {
-    test('should like a post', () => {
-        const postElement = document.createElement('div');
-        postElement.classList.add('post');
-        postElement.dataset.index = '1';
+  test('should like a post', async () => {
+    const postElement = document.getElementById('post-1');
+    setupLikeDislikeButtons(postElement);
 
-        const likeButton = document.createElement('button');
-        likeButton.classList.add('thumbs-up-btn');
-        likeButton.innerHTML = '&#128077;';
-        postElement.appendChild(likeButton);
+    const thumbsUpButton = postElement.querySelector('.thumbs-up-btn');
+    const likeCount = postElement.querySelectorAll('.post-rating-count')[0];
 
-        const dislikeButton = document.createElement('button');
-        dislikeButton.classList.add('thumbs-down-btn');
-        dislikeButton.innerHTML = '&#128078;';
-        postElement.appendChild(dislikeButton);
+    expect(thumbsUpButton.classList.contains('clicked')).toBe(false);
 
-        const likeCount = document.createElement('span');
-        likeCount.classList.add('like-count');
-        likeCount.textContent = '0';
-        postElement.appendChild(likeCount);
+    thumbsUpButton.click();
 
-        const dislikeCount = document.createElement('span');
-        dislikeCount.classList.add('dislike-count');
-        dislikeCount.textContent = '0';
-        postElement.appendChild(dislikeCount);
+    expect(thumbsUpButton.classList.contains('clicked')).toBe(true);
+    expect(parseInt(likeCount.textContent)).toBe(1);
+  });
 
-        container.appendChild(postElement);
+  test('should dislike a post', async () => {
+    const postElement = document.getElementById('post-1');
+    setupLikeDislikeButtons(postElement);
 
-        handleLike(postElement);
-        handleDislike(postElement);
+    const thumbsDownButton = postElement.querySelector('.thumbs-down-btn');
+    const dislikeCount = postElement.querySelectorAll('.post-rating-count')[1];
 
-        likeButton.click();
+    expect(thumbsDownButton.classList.contains('clicked')).toBe(false);
 
-        expect(likeButton.classList.contains('clicked')).toBe(true);
-        expect(Number(likeCount.textContent)).toBe(1);
-        expect(dislikeButton.disabled).toBe(true);
+    thumbsDownButton.click();
 
-        likeButton.click();
+    expect(thumbsDownButton.classList.contains('clicked')).toBe(true);
+    expect(parseInt(dislikeCount.textContent)).toBe(1);
+  });
 
-        expect(likeButton.classList.contains('clicked')).toBe(false);
-        expect(Number(likeCount.textContent)).toBe(0);
-        expect(dislikeButton.disabled).toBe(false);
-    });
+  test('should only allow a user to like once', async () => {
+    const postElement = document.getElementById('post-1');
+    setupLikeDislikeButtons(postElement);
 
-    test('should dislike a post', () => {
-        const postElement = document.createElement('div');
-        postElement.classList.add('post');
-        postElement.dataset.index = '1';
+    const thumbsUpButton = postElement.querySelector('.thumbs-up-btn');
+    const likeCount = postElement.querySelectorAll('.post-rating-count')[0];
 
-        const likeButton = document.createElement('button');
-        likeButton.classList.add('thumbs-up-btn');
-        likeButton.innerHTML = '&#128077;';
-        postElement.appendChild(likeButton);
+    thumbsUpButton.click();
+    expect(thumbsUpButton.classList.contains('clicked')).toBe(true);
+    expect(parseInt(likeCount.textContent)).toBe(1);
 
-        const dislikeButton = document.createElement('button');
-        dislikeButton.classList.add('thumbs-down-btn');
-        dislikeButton.innerHTML = '&#128078;';
-        postElement.appendChild(dislikeButton);
+    thumbsUpButton.click();
+    expect(thumbsUpButton.classList.contains('clicked')).toBe(false);
+    expect(parseInt(likeCount.textContent)).toBe(0);
+  });
 
-        const likeCount = document.createElement('span');
-        likeCount.classList.add('like-count');
-        likeCount.textContent = '0';
-        postElement.appendChild(likeCount);
+  test('should only allow a user to dislike once', async () => {
+    const postElement = document.getElementById('post-1');
+    setupLikeDislikeButtons(postElement);
 
-        const dislikeCount = document.createElement('span');
-        dislikeCount.classList.add('dislike-count');
-        dislikeCount.textContent = '0';
-        postElement.appendChild(dislikeCount);
+    const thumbsDownButton = postElement.querySelector('.thumbs-down-btn');
+    const dislikeCount = postElement.querySelectorAll('.post-rating-count')[1];
 
-        container.appendChild(postElement);
+    thumbsDownButton.click();
+    expect(thumbsDownButton.classList.contains('clicked')).toBe(true);
+    expect(parseInt(dislikeCount.textContent)).toBe(1);
 
-        handleLike(postElement);
-        handleDislike(postElement);
+    thumbsDownButton.click();
+    expect(thumbsDownButton.classList.contains('clicked')).toBe(false);
+    expect(parseInt(dislikeCount.textContent)).toBe(0);
+  });
 
-        dislikeButton.click();
+  test('should allow a user to switch between like and dislike', async () => {
+    const postElement = document.getElementById('post-1');
+    setupLikeDislikeButtons(postElement);
 
-        expect(dislikeButton.classList.contains('clicked')).toBe(true);
-        expect(Number(dislikeCount.textContent)).toBe(1);
-        expect(likeButton.disabled).toBe(true);
+    const thumbsUpButton = postElement.querySelector('.thumbs-up-btn');
+    const thumbsDownButton = postElement.querySelector('.thumbs-down-btn');
+    const likeCount = postElement.querySelectorAll('.post-rating-count')[0];
+    const dislikeCount = postElement.querySelectorAll('.post-rating-count')[1];
 
-        dislikeButton.click();
+    thumbsUpButton.click();
+    expect(thumbsUpButton.classList.contains('clicked')).toBe(true);
+    expect(thumbsDownButton.disabled).toBe(true);
+    expect(parseInt(likeCount.textContent)).toBe(1);
 
-        expect(dislikeButton.classList.contains('clicked')).toBe(false);
-        expect(Number(dislikeCount.textContent)).toBe(0);
-        expect(likeButton.disabled).toBe(false);
-    });
+    thumbsUpButton.click(); // Unlike
+    expect(thumbsUpButton.classList.contains('clicked')).toBe(false);
+    expect(thumbsDownButton.disabled).toBe(false);
+    expect(parseInt(likeCount.textContent)).toBe(0);
+
+    thumbsDownButton.click();
+    expect(thumbsDownButton.classList.contains('clicked')).toBe(true);
+    expect(thumbsUpButton.disabled).toBe(true);
+    expect(parseInt(dislikeCount.textContent)).toBe(1);
+  });
 });
